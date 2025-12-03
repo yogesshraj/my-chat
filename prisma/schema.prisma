@@ -1,0 +1,26 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  fromUser String
+  toUser   String
+  message  String
+  fileUrl  String?
+  fileType String?  // 'image', 'video', null
+  fileName String?
+  createdAt DateTime @default(now())
+
+  @@index([fromUser, toUser])
+  @@index([toUser, fromUser])
+  @@index([createdAt])
+}
