@@ -25,14 +25,14 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
                 <div className="message-media">
                   {msg.fileType === 'image' ? (
                     <img 
-                      src={`https://myakka.qzz.io${msg.fileUrl}`} 
+                      src={`https://myakka.qzz.io/uploads/${msg.fileUrl}`} 
                       alt={msg.fileName || 'Image'} 
                       className="message-image"
                       loading="lazy"
                     />
                   ) : msg.fileType === 'video' ? (
                     <video 
-                      src={`https://myakka.qzz.io${msg.fileUrl}`} 
+                      src={`https://myakka.qzz.io/uploads/${msg.fileUrl}`} 
                       controls
                       className="message-video"
                       preload="metadata"
