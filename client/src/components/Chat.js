@@ -36,7 +36,7 @@ const Chat = ({ user, onLogout }) => {
       });
 
     // Initialize socket connection
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io('https://myakka.qzz.io');
     setSocket(newSocket);
 
     // Login to socket
