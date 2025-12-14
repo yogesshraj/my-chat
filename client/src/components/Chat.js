@@ -61,8 +61,12 @@ const Chat = ({ user, onLogout }) => {
     newSocket.on('incoming-call', (data) => {
       console.log('Incoming call received from:', data.from);
       console.log('Setting callState to incoming, incomingCaller to:', data.from);
-      setIncomingCaller(data.from);
-      setCallState('incoming');
+      if (data.from) {
+        setIncomingCaller(data.from);
+        setCallState('incoming');
+      } else {
+        console.error('Incoming call data missing from field:', data);
+      }
     });
 
     newSocket.on('call-answered', (data) => {
@@ -89,7 +93,15 @@ const Chat = ({ user, onLogout }) => {
     });
 
     newSocket.on('call-offer', async (data) => {
-      console.log('Received call offer from:', data.from);
+      console.log('Received call offer:', data);
+      const caller = data.from || incomingCaller;
+      console.log('Caller:', caller, 'IncomingCaller state:', incomingCaller);
+      
+      // Update incomingCaller if we got it from the offer
+      if (data.from && !incomingCaller) {
+        setIncomingCaller(data.from);
+      }
+      
       if (peerConnectionRef.current) {
         try {
           console.log('Setting remote description...');
@@ -97,10 +109,10 @@ const Chat = ({ user, onLogout }) => {
           console.log('Creating answer...');
           const answer = await peerConnectionRef.current.createAnswer();
           await peerConnectionRef.current.setLocalDescription(answer);
-          console.log('Sending answer back to:', data.from);
-          if (newSocket) {
+          console.log('Sending answer back to:', caller);
+          if (newSocket && caller) {
             newSocket.emit('call-answer-webrtc', {
-              to: data.from,
+              to: caller,
               answer: answer
             });
           }
@@ -108,9 +120,12 @@ const Chat = ({ user, onLogout }) => {
           console.error('Error handling call offer:', error);
         }
       } else {
-        console.log('Peer connection not ready, storing offer');
-        // Store offer if peer connection not ready yet
-        pendingOfferRef.current = data.offer;
+        console.log('Peer connection not ready, storing offer and caller:', caller);
+        // Store offer with caller info if peer connection not ready yet
+        pendingOfferRef.current = {
+          offer: data.offer,
+          from: caller
+        };
       }
     });
 
@@ -352,13 +367,20 @@ const Chat = ({ user, onLogout }) => {
         if (pendingOfferRef.current) {
           try {
             console.log('Handling pending offer...');
-            await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+            const offer = typeof pendingOfferRef.current === 'object' && pendingOfferRef.current.offer 
+              ? pendingOfferRef.current.offer 
+              : pendingOfferRef.current;
+            
+            await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(offer));
             const answer = await peerConnectionRef.current.createAnswer();
             await peerConnectionRef.current.setLocalDescription(answer);
-            console.log('Answer created and set, sending to:', incomingCaller);
-            if (socket && incomingCaller) {
+            
+            const caller = incomingCaller || (typeof pendingOfferRef.current === 'object' ? pendingOfferRef.current.from : null);
+            console.log('Answer created and set, sending to:', caller);
+            
+            if (socket && caller) {
               socket.emit('call-answer-webrtc', {
-                to: incomingCaller,
+                to: caller,
                 answer: answer
               });
             }
@@ -426,9 +448,13 @@ const Chat = ({ user, onLogout }) => {
 
   const handleAnswerCall = async () => {
     if (socket && incomingCaller) {
+      console.log('Answering call from:', incomingCaller);
       socket.emit('call-answer', { to: incomingCaller });
       setCallState('active');
+      // Start call first, then it will handle the pending offer
       await startCall(true);
+    } else {
+      console.error('Cannot answer call:', { socket: !!socket, incomingCaller });
     }
   };
 
