@@ -123,7 +123,12 @@ const Chat = ({ user, onLogout }) => {
 
     return () => {
       newSocket.close();
-      endCall();
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
     };
   }, [user]);
 
@@ -170,8 +175,28 @@ const Chat = ({ user, onLogout }) => {
     const configuration = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // Free TURN servers (for NAT traversal in AWS/cloud environments)
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
+      ],
+      iceCandidatePoolSize: 10
     };
 
     const pc = new RTCPeerConnection(configuration);
@@ -185,18 +210,39 @@ const Chat = ({ user, onLogout }) => {
 
     // Handle remote stream
     pc.ontrack = (event) => {
-      if (remoteAudioRef.current) {
+      console.log('Received remote track:', event.track.kind);
+      if (remoteAudioRef.current && event.streams[0]) {
         remoteAudioRef.current.srcObject = event.streams[0];
+        remoteAudioRef.current.play().catch(err => {
+          console.error('Error playing remote audio:', err);
+        });
       }
+    };
+
+    // Handle connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log('Peer connection state:', pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        console.error('Peer connection failed. Attempting to restart...');
+        // Could implement reconnection logic here
+      }
+    };
+
+    // Handle ICE connection state
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', pc.iceConnectionState);
     };
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && socket && otherUser) {
+        console.log('Sending ICE candidate');
         socket.emit('ice-candidate', {
           to: otherUser,
           candidate: event.candidate
         });
+      } else if (!event.candidate) {
+        console.log('All ICE candidates have been sent');
       }
     };
 
@@ -205,20 +251,29 @@ const Chat = ({ user, onLogout }) => {
 
   const startCall = async (isAnswering = false) => {
     try {
-      // Get user media
+      // Get user media with better constraints
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: true, 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000
+        }, 
         video: false 
       });
       localStreamRef.current = stream;
+      console.log('Got local media stream:', stream.getTracks());
 
-      // Create remote audio element
+      // Create remote audio element with better settings
       if (!remoteAudioRef.current) {
         const audio = document.createElement('audio');
         audio.autoplay = true;
+        audio.playsInline = true;
         audio.style.display = 'none';
+        audio.volume = 1.0;
         document.body.appendChild(audio);
         remoteAudioRef.current = audio;
+        console.log('Created remote audio element');
       }
 
       // Create peer connection
