@@ -89,11 +89,15 @@ const Chat = ({ user, onLogout }) => {
     });
 
     newSocket.on('call-offer', async (data) => {
+      console.log('Received call offer from:', data.from);
       if (peerConnectionRef.current) {
         try {
+          console.log('Setting remote description...');
           await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.offer));
+          console.log('Creating answer...');
           const answer = await peerConnectionRef.current.createAnswer();
           await peerConnectionRef.current.setLocalDescription(answer);
+          console.log('Sending answer back to:', data.from);
           if (newSocket) {
             newSocket.emit('call-answer-webrtc', {
               to: data.from,
@@ -104,20 +108,34 @@ const Chat = ({ user, onLogout }) => {
           console.error('Error handling call offer:', error);
         }
       } else {
+        console.log('Peer connection not ready, storing offer');
         // Store offer if peer connection not ready yet
         pendingOfferRef.current = data.offer;
       }
     });
 
     newSocket.on('call-answer-webrtc', async (data) => {
+      console.log('Received call answer from:', data.from);
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        try {
+          console.log('Setting remote description (answer)...');
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+          console.log('Remote description set successfully');
+        } catch (error) {
+          console.error('Error setting remote description (answer):', error);
+        }
       }
     });
 
     newSocket.on('ice-candidate', async (data) => {
+      console.log('Received ICE candidate from:', data.from);
       if (peerConnectionRef.current && data.candidate) {
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+        try {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+          console.log('ICE candidate added successfully');
+        } catch (error) {
+          console.error('Error adding ICE candidate:', error);
+        }
       }
     });
 
@@ -210,12 +228,34 @@ const Chat = ({ user, onLogout }) => {
 
     // Handle remote stream
     pc.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
-      if (remoteAudioRef.current && event.streams[0]) {
-        remoteAudioRef.current.srcObject = event.streams[0];
-        remoteAudioRef.current.play().catch(err => {
-          console.error('Error playing remote audio:', err);
-        });
+      console.log('Received remote track:', event.track.kind, event.track);
+      console.log('Remote streams:', event.streams);
+      if (event.streams && event.streams.length > 0) {
+        const remoteStream = event.streams[0];
+        console.log('Remote stream tracks:', remoteStream.getTracks());
+        
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = remoteStream;
+          
+          // Force play the audio
+          remoteAudioRef.current.play()
+            .then(() => {
+              console.log('Remote audio playing successfully');
+              console.log('Audio element volume:', remoteAudioRef.current.volume);
+              console.log('Audio element muted:', remoteAudioRef.current.muted);
+            })
+            .catch(err => {
+              console.error('Error playing remote audio:', err);
+              // Try again after a short delay
+              setTimeout(() => {
+                remoteAudioRef.current?.play().catch(e => {
+                  console.error('Retry play failed:', e);
+                });
+              }, 500);
+            });
+        } else {
+          console.error('Remote audio element not found!');
+        }
       }
     };
 
@@ -271,6 +311,22 @@ const Chat = ({ user, onLogout }) => {
         audio.playsInline = true;
         audio.style.display = 'none';
         audio.volume = 1.0;
+        audio.muted = false;
+        
+        // Add event listeners for debugging
+        audio.addEventListener('loadedmetadata', () => {
+          console.log('Audio metadata loaded');
+        });
+        audio.addEventListener('canplay', () => {
+          console.log('Audio can play');
+        });
+        audio.addEventListener('play', () => {
+          console.log('Audio started playing');
+        });
+        audio.addEventListener('error', (e) => {
+          console.error('Audio element error:', e);
+        });
+        
         document.body.appendChild(audio);
         remoteAudioRef.current = audio;
         console.log('Created remote audio element');
@@ -295,9 +351,11 @@ const Chat = ({ user, onLogout }) => {
         // For answering, check if we have a pending offer
         if (pendingOfferRef.current) {
           try {
+            console.log('Handling pending offer...');
             await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
             const answer = await peerConnectionRef.current.createAnswer();
             await peerConnectionRef.current.setLocalDescription(answer);
+            console.log('Answer created and set, sending to:', incomingCaller);
             if (socket && incomingCaller) {
               socket.emit('call-answer-webrtc', {
                 to: incomingCaller,
@@ -308,6 +366,8 @@ const Chat = ({ user, onLogout }) => {
           } catch (error) {
             console.error('Error handling pending offer:', error);
           }
+        } else {
+          console.log('No pending offer found when answering call');
         }
       }
     } catch (error) {
