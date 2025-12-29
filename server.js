@@ -252,6 +252,15 @@ io.on('connection', (socket) => {
       
       if (recipientSocket) {
         io.to(recipientSocket).emit('receiveMessage', message);
+        
+        // Send notification only to USER_1_NAME when USER_2_NAME sends a message
+        if (fromUser !== user1Name && data.to === user1Name) {
+          io.to(recipientSocket).emit('new-message-notification', {
+            from: fromUser,
+            message: data.message || (data.fileType === 'image' ? 'Sent an image' : data.fileType === 'video' ? 'Sent a video' : 'Sent a file'),
+            fileType: data.fileType
+          });
+        }
       }
       
       // Also send back to sender for confirmation

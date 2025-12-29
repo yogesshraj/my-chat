@@ -21,6 +21,7 @@ const Chat = ({ user, onLogout }) => {
   const [callState, setCallState] = useState(null); // 'incoming', 'calling', 'active', null
   const [incomingCaller, setIncomingCaller] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -36,15 +37,38 @@ const Chat = ({ user, onLogout }) => {
       });
 
     // Initialize socket connection
-    const newSocket = io('https://myakka.qzz.io');
+    const newSocket = io('https://myakka.qzz.io', {
+      transports: ['websocket', 'polling']
+    });
     setSocket(newSocket);
 
-    // Login to socket
-    newSocket.emit('login', user);
+    // Wait for connection before logging in
+    newSocket.on('connect', () => {
+      console.log('Socket connected, logging in as:', user);
+      newSocket.emit('login', user);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+
+    // Listen for login confirmation via userStatus event
+    newSocket.on('userStatus', (data) => {
+      if (data.username === user && data.status === 'online') {
+        console.log('Login confirmed for:', user);
+        setIsLoggedIn(true);
+      }
+    });
 
     // Listen for messages
     newSocket.on('receiveMessage', (message) => {
       setMessages(prev => [...prev, message]);
+    });
+
+    // Listen for notifications (only USER_1_NAME receives these)
+    // Server only sends this event to USER_1_NAME, so we can show it directly
+    newSocket.on('new-message-notification', (data) => {
+      showNotification(data.from, data.message, data.fileType);
     });
 
     // Listen for typing indicator
@@ -202,6 +226,40 @@ const Chat = ({ user, onLogout }) => {
       });
     }
   };
+
+  // Notification function
+  const showNotification = (from, message, fileType) => {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        const title = `New message from ${from}`;
+        const body = fileType === 'image' ? '📷 Sent an image' : 
+                     fileType === 'video' ? '🎥 Sent a video' : 
+                     message || 'New message';
+        
+        new Notification(title, {
+          body: body,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: `message-${from}-${Date.now()}`
+        });
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            showNotification(from, message, fileType);
+          }
+        });
+      }
+    }
+  };
+
+  // Request notification permission on mount (only for USER_1_NAME)
+  useEffect(() => {
+    // Check if current user is USER_1_NAME by comparing with otherUser
+    // If otherUser exists and we're not them, we're USER_1_NAME
+    if (otherUser && user !== otherUser && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [user, otherUser]);
 
   // WebRTC Call Functions
   const createPeerConnection = () => {
@@ -431,19 +489,46 @@ const Chat = ({ user, onLogout }) => {
   };
 
   const handleCallClick = async () => {
-    if (socket && otherUser && !callState) {
-      console.log('Initiating call to:', otherUser);
-      console.log('Current user:', user);
-      console.log('Socket connected:', socket.connected);
-      // Emit call initiate first
-      socket.emit('call-initiate', { to: otherUser, callType: 'audio' });
-      // Set state to calling (waiting for answer)
-      setCallState('calling');
-      // Start the call setup
-      await startCall(false);
-    } else {
-      console.log('Cannot call:', { socket: !!socket, otherUser, callState });
+    if (!socket) {
+      console.error('Socket not initialized');
+      alert('Connection not ready. Please wait...');
+      return;
     }
+    
+    if (!socket.connected) {
+      console.error('Socket not connected');
+      alert('Connection lost. Please refresh the page.');
+      return;
+    }
+    
+    if (!isLoggedIn) {
+      console.error('Not logged in yet');
+      alert('Please wait for connection to be established...');
+      return;
+    }
+    
+    if (!otherUser) {
+      console.error('Other user not found');
+      return;
+    }
+    
+    if (callState) {
+      console.log('Call already in progress');
+      return;
+    }
+    
+    console.log('Initiating call to:', otherUser);
+    console.log('Current user:', user);
+    console.log('Socket connected:', socket.connected);
+    console.log('Socket ID:', socket.id);
+    console.log('Is logged in:', isLoggedIn);
+    
+    // Emit call initiate first
+    socket.emit('call-initiate', { to: otherUser, callType: 'audio' });
+    // Set state to calling (waiting for answer)
+    setCallState('calling');
+    // Start the call setup
+    await startCall(false);
   };
 
   const handleAnswerCall = async () => {
