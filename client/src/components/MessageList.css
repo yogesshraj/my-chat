@@ -47,6 +47,15 @@
   justify-content: flex-start;
 }
 
+.message {
+  touch-action: pan-y;
+}
+
+.message-bubble-wrapper {
+  width: 100%;
+  position: relative;
+}
+
 .message-bubble {
   max-width: 65%;
   padding: 8px 12px;
