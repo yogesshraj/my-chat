@@ -140,7 +140,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 app.get('/api/messages', async (req, res) => {
   try {
     const { user1, user2 } = req.query;
-    
+
     if (!user1 || !user2) {
       return res.status(400).json({ error: 'Both user1 and user2 are required' });
     }
@@ -157,50 +157,136 @@ app.get('/api/messages', async (req, res) => {
       }
     });
 
-                // Format messages for frontend
-                const formattedMessages = await Promise.all(messages.map(async (msg) => {
-                  let replyTo = null;
-                  if (msg.replyToId) {
-                    const replyToMsg = await prisma.message.findUnique({
-                      where: { id: msg.replyToId },
-                      select: {
-                        id: true,
-                        fromUser: true,
-                        message: true,
-                        fileType: true,
-                        fileName: true
-                      }
-                    });
-                    if (replyToMsg) {
-                      replyTo = {
-                        id: replyToMsg.id,
-                        from: replyToMsg.fromUser,
-                        message: replyToMsg.message,
-                        fileType: replyToMsg.fileType,
-                        fileName: replyToMsg.fileName
-                      };
-                    }
-                  }
-                  return {
-                    id: msg.id,
-                    from: msg.fromUser,
-                    to: msg.toUser,
-                    message: msg.message,
-                    fileUrl: msg.fileUrl,
-                    fileType: msg.fileType,
-                    fileName: msg.fileName,
-                    isEdited: msg.isEdited,
-                    editedAt: msg.editedAt?.toISOString() || null,
-                    replyToId: msg.replyToId,
-                    replyTo: replyTo,
-                    timestamp: msg.createdAt.toISOString()
-                  };
-                }));
+    // Format messages for frontend
+    const formattedMessages = await Promise.all(messages.map(async (msg) => {
+      let replyTo = null;
+      if (msg.replyToId) {
+        const replyToMsg = await prisma.message.findUnique({
+          where: { id: msg.replyToId },
+          select: {
+            id: true,
+            fromUser: true,
+            message: true,
+            fileType: true,
+            fileName: true
+          }
+        });
+        if (replyToMsg) {
+          replyTo = {
+            id: replyToMsg.id,
+            from: replyToMsg.fromUser,
+            message: replyToMsg.message,
+            fileType: replyToMsg.fileType,
+            fileName: replyToMsg.fileName
+          };
+        }
+      }
+      return {
+        id: msg.id,
+        from: msg.fromUser,
+        to: msg.toUser,
+        message: msg.message,
+        fileUrl: msg.fileUrl,
+        fileType: msg.fileType,
+        fileName: msg.fileName,
+        isEdited: msg.isEdited,
+        editedAt: msg.editedAt?.toISOString() || null,
+        replyToId: msg.replyToId,
+        replyTo: replyTo,
+        timestamp: msg.createdAt.toISOString()
+      };
+    }));
 
     res.json(formattedMessages);
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Get all messages with IDs (no authentication)
+app.get('/api/messages/all', async (req, res) => {
+  try {
+    const messages = await prisma.message.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Format messages
+    const formattedMessages = await Promise.all(messages.map(async (msg) => {
+      let replyTo = null;
+      if (msg.replyToId) {
+        const replyToMsg = await prisma.message.findUnique({
+          where: { id: msg.replyToId },
+          select: {
+            id: true,
+            fromUser: true,
+            message: true,
+            fileType: true,
+            fileName: true
+          }
+        });
+        if (replyToMsg) {
+          replyTo = {
+            id: replyToMsg.id,
+            from: replyToMsg.fromUser,
+            message: replyToMsg.message,
+            fileType: replyToMsg.fileType,
+            fileName: replyToMsg.fileName
+          };
+        }
+      }
+      return {
+        id: msg.id,
+        from: msg.fromUser,
+        to: msg.toUser,
+        message: msg.message,
+        fileUrl: msg.fileUrl,
+        fileType: msg.fileType,
+        fileName: msg.fileName,
+        isEdited: msg.isEdited,
+        editedAt: msg.editedAt?.toISOString() || null,
+        replyToId: msg.replyToId,
+        replyTo: replyTo,
+        timestamp: msg.createdAt.toISOString()
+      };
+    }));
+
+    res.json(formattedMessages);
+  } catch (error) {
+    console.error('Error fetching all messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Delete message by ID (no authentication)
+app.delete('/api/messages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Message ID is required' });
+    }
+
+    // Check if message exists
+    const message = await prisma.message.findUnique({
+      where: { id }
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    // Delete the message
+    await prisma.message.delete({
+      where: { id }
+    });
+
+    res.json({ success: true, message: 'Message deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
   }
 });
 
