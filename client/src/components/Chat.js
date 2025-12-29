@@ -98,6 +98,19 @@ const Chat = ({ user, onLogout }) => {
       });
     });
 
+    // Listen for messages read updates
+    newSocket.on('messagesRead', (data) => {
+      setMessages(prev => {
+        return prev.map(msg => {
+          // Update read status for specific message IDs
+          if (data.messageIds && data.messageIds.includes(msg.id)) {
+            return { ...msg, isRead: true, readAt: new Date().toISOString() };
+          }
+          return msg;
+        });
+      });
+    });
+
     // Listen for notifications (only USER_1_NAME receives these)
     newSocket.on('new-message-notification', (data) => {
       // Double check: only show if current user is USER_1_NAME
@@ -226,7 +239,21 @@ const Chat = ({ user, onLogout }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, typing]);
+    
+    // Mark messages as read when user views them
+    if (socket && otherUser && messages.length > 0) {
+      const unreadMessages = messages.filter(
+        msg => msg.from === otherUser && !msg.isRead
+      );
+      
+      if (unreadMessages.length > 0) {
+        // Mark messages as read
+        socket.emit('markMessagesRead', {
+          fromUser: otherUser
+        });
+      }
+    }
+  }, [messages, typing, socket, otherUser]);
 
   const scrollToBottom = () => {
     // Use setTimeout to ensure DOM has updated

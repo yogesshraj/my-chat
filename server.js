@@ -191,6 +191,8 @@ app.get('/api/messages', async (req, res) => {
         fileName: msg.fileName,
         isEdited: msg.isEdited,
         editedAt: msg.editedAt?.toISOString() || null,
+        isRead: msg.isRead,
+        readAt: msg.readAt?.toISOString() || null,
         replyToId: msg.replyToId,
         replyTo: replyTo,
         timestamp: msg.createdAt.toISOString()
@@ -247,6 +249,8 @@ app.get('/api/messages/all', async (req, res) => {
         fileName: msg.fileName,
         isEdited: msg.isEdited,
         editedAt: msg.editedAt?.toISOString() || null,
+        isRead: msg.isRead,
+        readAt: msg.readAt?.toISOString() || null,
         replyToId: msg.replyToId,
         replyTo: replyTo,
         timestamp: msg.createdAt.toISOString()
@@ -355,6 +359,8 @@ io.on('connection', (socket) => {
             fileName: msg.fileName,
             isEdited: msg.isEdited,
             editedAt: msg.editedAt?.toISOString() || null,
+            isRead: msg.isRead,
+            readAt: msg.readAt?.toISOString() || null,
             replyToId: msg.replyToId,
             replyTo: replyTo,
             timestamp: msg.createdAt.toISOString()
@@ -362,6 +368,36 @@ io.on('connection', (socket) => {
         }));
 
         socket.emit('messageHistory', formattedMessages);
+        
+        // Mark unread messages as read when user logs in
+        try {
+          const unreadMessages = await prisma.message.updateMany({
+            where: {
+              toUser: username,
+              fromUser: otherUser,
+              isRead: false
+            },
+            data: {
+              isRead: true,
+              readAt: new Date()
+            }
+          });
+          
+          if (unreadMessages.count > 0) {
+            // Notify sender that messages were read
+            const senderSocket = Array.from(activeUsers.entries())
+              .find(([id, uname]) => uname === otherUser)?.[0];
+            
+            if (senderSocket) {
+              io.to(senderSocket).emit('messagesRead', {
+                from: username,
+                count: unreadMessages.count
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error marking messages as read:', error);
+        }
       }
     } catch (error) {
       console.error('Error loading message history:', error);
@@ -407,6 +443,8 @@ io.on('connection', (socket) => {
         fileName: savedMessage.fileName,
         isEdited: savedMessage.isEdited,
         editedAt: savedMessage.editedAt?.toISOString() || null,
+        isRead: savedMessage.isRead,
+        readAt: savedMessage.readAt?.toISOString() || null,
         replyToId: savedMessage.replyToId,
         replyTo: savedMessage.replyTo ? {
           id: savedMessage.replyTo.id,
@@ -606,6 +644,8 @@ io.on('connection', (socket) => {
         fileName: updatedMessage.fileName,
         isEdited: updatedMessage.isEdited,
         editedAt: updatedMessage.editedAt?.toISOString() || null,
+        isRead: updatedMessage.isRead,
+        readAt: updatedMessage.readAt?.toISOString() || null,
         replyToId: updatedMessage.replyToId,
         replyTo: updatedMessage.replyTo ? {
           id: updatedMessage.replyTo.id,
@@ -622,6 +662,52 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error editing message:', error);
       socket.emit('error', { message: 'Failed to edit message' });
+    }
+  });
+
+  // Handle marking messages as read
+  socket.on('markMessagesRead', async (data) => {
+    try {
+      const currentUser = socket.username;
+      if (!currentUser) return;
+
+      // Get unread messages first to get their IDs
+      const unreadMessages = await prisma.message.findMany({
+        where: {
+          fromUser: data.fromUser,
+          toUser: currentUser,
+          isRead: false
+        },
+        select: { id: true }
+      });
+
+      if (unreadMessages.length > 0) {
+        // Mark messages as read
+        await prisma.message.updateMany({
+          where: {
+            fromUser: data.fromUser,
+            toUser: currentUser,
+            isRead: false
+          },
+          data: {
+            isRead: true,
+            readAt: new Date()
+          }
+        });
+
+        // Notify the sender that their messages were read
+        const senderSocket = Array.from(activeUsers.entries())
+          .find(([id, username]) => username === data.fromUser)?.[0];
+
+        if (senderSocket) {
+          io.to(senderSocket).emit('messagesRead', {
+            from: currentUser,
+            messageIds: unreadMessages.map(m => m.id)
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
     }
   });
 

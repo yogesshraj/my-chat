@@ -90,6 +90,25 @@
   gap: 8px;
 }
 
+.message-status {
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.single-tick,
+.double-tick {
+  flex-shrink: 0;
+}
+
+.single-tick {
+  opacity: 0.6;
+}
+
+.double-tick {
+  opacity: 1;
+}
+
 .message-time {
   font-size: 11px;
   color: #667781;

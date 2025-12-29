@@ -178,6 +178,20 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
               {formatTime(msg.timestamp)}
               {msg.isEdited && <span className="edited-indicator"> (edited)</span>}
             </div>
+            {isOwnMessage && (
+              <div className="message-status">
+                {msg.isRead ? (
+                  <svg width="16" height="16" viewBox="0 0 16 15" fill="none" className="double-tick">
+                    <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.042L8.666 9.879l-2.772-3.166a.365.365 0 0 0-.51-.042l-.478.372a.365.365 0 0 0-.042.51l3.18 3.634a.365.365 0 0 0 .51.042l7.06-6.163a.365.365 0 0 0 .042-.51z" fill="#4FC3F7"/>
+                    <path d="M11.01 3.316l-.478-.372a.365.365 0 0 0-.51.042L4.666 9.879l-2.772-3.166a.365.365 0 0 0-.51-.042l-.478.372a.365.365 0 0 0-.042.51l3.18 3.634a.365.365 0 0 0 .51.042l7.06-6.163a.365.365 0 0 0 .042-.51z" fill="#4FC3F7"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 15" fill="none" className="single-tick">
+                    <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.042L8.666 9.879l-2.772-3.166a.365.365 0 0 0-.51-.042l-.478.372a.365.365 0 0 0-.042.51l3.18 3.634a.365.365 0 0 0 .51.042l7.06-6.163a.365.365 0 0 0 .042-.51z" fill="#8696A0"/>
+                  </svg>
+                )}
+              </div>
+            )}
             <div className="message-actions">
               {!isOwnMessage && (
                 <button 
