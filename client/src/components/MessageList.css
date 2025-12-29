@@ -77,15 +77,109 @@
   margin-bottom: 4px;
 }
 
+.message-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  gap: 8px;
+}
+
 .message-time {
   font-size: 11px;
   color: #667781;
   text-align: right;
-  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .message-received .message-time {
   text-align: left;
+}
+
+.edited-indicator {
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.message-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.message:hover .message-actions {
+  opacity: 1;
+}
+
+.message-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #667781;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.message-action-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.message-reply-preview {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-left: 3px solid #25d366;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.message-sent .message-reply-preview {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-left-color: #dcf8c6;
+}
+
+.reply-preview-line {
+  width: 2px;
+  background-color: #25d366;
+  flex-shrink: 0;
+}
+
+.message-sent .reply-preview-line {
+  background-color: #dcf8c6;
+}
+
+.reply-preview-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-preview-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #25d366;
+  margin-bottom: 2px;
+}
+
+.message-sent .reply-preview-name {
+  color: #dcf8c6;
+}
+
+.reply-preview-text {
+  font-size: 11px;
+  color: #667781;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-media {

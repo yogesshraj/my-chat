@@ -3,13 +3,20 @@ import axios from 'axios';
 import EmojiPicker from 'emoji-picker-react';
 import './MessageInput.css';
 
-const MessageInput = ({ onSendMessage, onTyping }) => {
+const MessageInput = ({ onSendMessage, onTyping, replyTo, onCancelReply, editMessage, onCancelEdit }) => {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [uploading, setUploading] = useState(false);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Set message when editing
+  useEffect(() => {
+    if (editMessage) {
+      setMessage(editMessage.message || '');
+    }
+  }, [editMessage]);
 
   // Compress large images client-side (keep high quality)
   const compressImage = (file) => {
@@ -182,6 +189,37 @@ const MessageInput = ({ onSendMessage, onTyping }) => {
       )}
       {uploading && (
         <div className="uploading-indicator">Uploading...</div>
+      )}
+      {(replyTo || editMessage) && (
+        <div className="input-preview">
+          <div className="preview-content">
+            {replyTo && (
+              <>
+                <div className="preview-label">Replying to {replyTo.from === 'You' ? 'yourself' : replyTo.from}</div>
+                <div className="preview-text">
+                  {replyTo.fileType === 'image' ? '📷 Image' : 
+                   replyTo.fileType === 'video' ? '🎥 Video' : 
+                   replyTo.message || 'Message'}
+                </div>
+              </>
+            )}
+            {editMessage && (
+              <>
+                <div className="preview-label">Editing message</div>
+                <div className="preview-text">{editMessage.message || 'Message'}</div>
+              </>
+            )}
+          </div>
+          <button 
+            className="preview-close" 
+            onClick={() => {
+              if (replyTo && onCancelReply) onCancelReply();
+              if (editMessage && onCancelEdit) onCancelEdit();
+            }}
+          >
+            ✕
+          </button>
+        </div>
       )}
       <div className="message-input-box">
         <input

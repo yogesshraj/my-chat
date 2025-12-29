@@ -18,9 +18,15 @@ model Message {
   fileUrl  String?
   fileType String?  // 'image', 'video', null
   fileName String?
+  isEdited Boolean  @default(false)
+  editedAt DateTime?
+  replyToId String?  // ID of the message being replied to
+  replyTo  Message?  @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies  Message[] @relation("MessageReplies")
   createdAt DateTime @default(now())
 
   @@index([fromUser, toUser])
   @@index([toUser, fromUser])
   @@index([createdAt])
+  @@index([replyToId])
 }

@@ -23,6 +23,8 @@ const Chat = ({ user, onLogout }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user1Name, setUser1Name] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [editMessage, setEditMessage] = useState(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -70,7 +72,29 @@ const Chat = ({ user, onLogout }) => {
 
     // Listen for messages
     newSocket.on('receiveMessage', (message) => {
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => {
+        // Check if message already exists (update instead of add)
+        const existingIndex = prev.findIndex(m => m.id === message.id);
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = message;
+          return updated;
+        }
+        return [...prev, message];
+      });
+    });
+
+    // Listen for edited messages
+    newSocket.on('messageEdited', (message) => {
+      setMessages(prev => {
+        const index = prev.findIndex(m => m.id === message.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = message;
+          return updated;
+        }
+        return prev;
+      });
     });
 
     // Listen for notifications (only USER_1_NAME receives these)
@@ -215,16 +239,30 @@ const Chat = ({ user, onLogout }) => {
     }, 100);
   };
 
-  const sendMessage = (messageText, fileData = null) => {
+  const sendMessage = (messageText, fileData = null, replyToId = null, editMessageId = null) => {
     if (socket && otherUser && (messageText.trim() || fileData)) {
-      socket.emit('sendMessage', {
-        from: user,
-        to: otherUser,
-        message: messageText || '',
-        fileUrl: fileData?.fileUrl || null,
-        fileType: fileData?.fileType || null,
-        fileName: fileData?.fileName || null
-      });
+      if (editMessageId) {
+        // Edit existing message
+        socket.emit('editMessage', {
+          messageId: editMessageId,
+          newMessage: messageText
+        });
+        setEditMessage(null);
+      } else {
+        // Send new message or reply
+        socket.emit('sendMessage', {
+          from: user,
+          to: otherUser,
+          message: messageText || '',
+          fileUrl: fileData?.fileUrl || null,
+          fileType: fileData?.fileType || null,
+          fileName: fileData?.fileName || null,
+          replyToId: replyToId
+        });
+        if (replyTo) {
+          setReplyTo(null);
+        }
+      }
     }
   };
 
@@ -604,18 +642,29 @@ const Chat = ({ user, onLogout }) => {
             onLogout={onLogout}
             onCallClick={handleCallClick}
           />
-          <MessageList 
-            messages={messages} 
-            currentUser={user} 
-            typing={typing}
-            otherUser={otherUser}
-            messagesEndRef={messagesEndRef}
-            messageListRef={messageListRef}
-          />
-          <MessageInput 
-            onSendMessage={sendMessage} 
-            onTyping={handleTyping}
-          />
+                      <MessageList
+                        messages={messages}
+                        currentUser={user}
+                        typing={typing}
+                        otherUser={otherUser}
+                        messagesEndRef={messagesEndRef}
+                        messageListRef={messageListRef}
+                        onReply={(msg) => setReplyTo(msg)}
+                        onEdit={(msg) => {
+                          if (msg.from === user) {
+                            setEditMessage(msg);
+                            setReplyTo(null);
+                          }
+                        }}
+                      />
+                      <MessageInput
+                        onSendMessage={sendMessage}
+                        onTyping={handleTyping}
+                        replyTo={replyTo}
+                        onCancelReply={() => setReplyTo(null)}
+                        editMessage={editMessage}
+                        onCancelEdit={() => setEditMessage(null)}
+                      />
         </>
       )}
     </div>

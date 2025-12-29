@@ -157,16 +157,45 @@ app.get('/api/messages', async (req, res) => {
       }
     });
 
-    // Format messages for frontend
-    const formattedMessages = messages.map(msg => ({
-      from: msg.fromUser,
-      to: msg.toUser,
-      message: msg.message,
-      fileUrl: msg.fileUrl,
-      fileType: msg.fileType,
-      fileName: msg.fileName,
-      timestamp: msg.createdAt.toISOString()
-    }));
+                // Format messages for frontend
+                const formattedMessages = await Promise.all(messages.map(async (msg) => {
+                  let replyTo = null;
+                  if (msg.replyToId) {
+                    const replyToMsg = await prisma.message.findUnique({
+                      where: { id: msg.replyToId },
+                      select: {
+                        id: true,
+                        fromUser: true,
+                        message: true,
+                        fileType: true,
+                        fileName: true
+                      }
+                    });
+                    if (replyToMsg) {
+                      replyTo = {
+                        id: replyToMsg.id,
+                        from: replyToMsg.fromUser,
+                        message: replyToMsg.message,
+                        fileType: replyToMsg.fileType,
+                        fileName: replyToMsg.fileName
+                      };
+                    }
+                  }
+                  return {
+                    id: msg.id,
+                    from: msg.fromUser,
+                    to: msg.toUser,
+                    message: msg.message,
+                    fileUrl: msg.fileUrl,
+                    fileType: msg.fileType,
+                    fileName: msg.fileName,
+                    isEdited: msg.isEdited,
+                    editedAt: msg.editedAt?.toISOString() || null,
+                    replyToId: msg.replyToId,
+                    replyTo: replyTo,
+                    timestamp: msg.createdAt.toISOString()
+                  };
+                }));
 
     res.json(formattedMessages);
   } catch (error) {
@@ -207,14 +236,43 @@ io.on('connection', (socket) => {
         messages.reverse();
 
         // Send message history to the client
-        const formattedMessages = messages.map(msg => ({
-          from: msg.fromUser,
-          to: msg.toUser,
-          message: msg.message,
-          fileUrl: msg.fileUrl,
-          fileType: msg.fileType,
-          fileName: msg.fileName,
-          timestamp: msg.createdAt.toISOString()
+        const formattedMessages = await Promise.all(messages.map(async (msg) => {
+          let replyTo = null;
+          if (msg.replyToId) {
+            const replyToMsg = await prisma.message.findUnique({
+              where: { id: msg.replyToId },
+              select: {
+                id: true,
+                fromUser: true,
+                message: true,
+                fileType: true,
+                fileName: true
+              }
+            });
+            if (replyToMsg) {
+              replyTo = {
+                id: replyToMsg.id,
+                from: replyToMsg.fromUser,
+                message: replyToMsg.message,
+                fileType: replyToMsg.fileType,
+                fileName: replyToMsg.fileName
+              };
+            }
+          }
+          return {
+            id: msg.id,
+            from: msg.fromUser,
+            to: msg.toUser,
+            message: msg.message,
+            fileUrl: msg.fileUrl,
+            fileType: msg.fileType,
+            fileName: msg.fileName,
+            isEdited: msg.isEdited,
+            editedAt: msg.editedAt?.toISOString() || null,
+            replyToId: msg.replyToId,
+            replyTo: replyTo,
+            timestamp: msg.createdAt.toISOString()
+          };
         }));
 
         socket.emit('messageHistory', formattedMessages);
@@ -237,17 +295,40 @@ io.on('connection', (socket) => {
           message: data.message || '',
           fileUrl: data.fileUrl || null,
           fileType: data.fileType || null,
-          fileName: data.fileName || null
+          fileName: data.fileName || null,
+          replyToId: data.replyToId || null
+        },
+        include: {
+          replyTo: {
+            select: {
+              id: true,
+              fromUser: true,
+              message: true,
+              fileType: true,
+              fileName: true
+            }
+          }
         }
       });
 
       const message = {
+        id: savedMessage.id,
         from: savedMessage.fromUser,
         to: savedMessage.toUser,
         message: savedMessage.message,
         fileUrl: savedMessage.fileUrl,
         fileType: savedMessage.fileType,
         fileName: savedMessage.fileName,
+        isEdited: savedMessage.isEdited,
+        editedAt: savedMessage.editedAt?.toISOString() || null,
+        replyToId: savedMessage.replyToId,
+        replyTo: savedMessage.replyTo ? {
+          id: savedMessage.replyTo.id,
+          from: savedMessage.replyTo.fromUser,
+          message: savedMessage.replyTo.message,
+          fileType: savedMessage.replyTo.fileType,
+          fileName: savedMessage.replyTo.fileName
+        } : null,
         timestamp: savedMessage.createdAt.toISOString()
       };
       
