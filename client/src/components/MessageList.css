@@ -142,25 +142,26 @@
   gap: 8px;
   padding: 8px;
   margin-bottom: 8px;
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.08);
   border-left: 3px solid #25d366;
   border-radius: 4px;
   cursor: pointer;
 }
 
 .message-sent .message-reply-preview {
-  background-color: rgba(255, 255, 255, 0.3);
-  border-left-color: #dcf8c6;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-left-color: #075e54;
 }
 
 .reply-preview-line {
-  width: 2px;
+  width: 3px;
   background-color: #25d366;
   flex-shrink: 0;
+  border-radius: 2px;
 }
 
 .message-sent .reply-preview-line {
-  background-color: #dcf8c6;
+  background-color: #075e54;
 }
 
 .reply-preview-content {
@@ -171,12 +172,12 @@
 .reply-preview-name {
   font-size: 12px;
   font-weight: 600;
-  color: #25d366;
+  color: #075e54;
   margin-bottom: 2px;
 }
 
 .message-sent .reply-preview-name {
-  color: #dcf8c6;
+  color: #075e54;
 }
 
 .reply-preview-text {

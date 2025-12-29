@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import './MessageList.css';
 
 const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef, messageListRef, onReply, onEdit }) => {
@@ -46,13 +46,25 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
     const [isSwiping, setIsSwiping] = useState(false);
     const touchStartX = useRef(0);
     const touchStartY = useRef(0);
+    const longPressTimer = useRef(null);
     const SWIPE_THRESHOLD = 50;
     const MAX_SWIPE = 80;
+    const LONG_PRESS_DURATION = 500; // 500ms for long press
 
     const handleTouchStart = (e) => {
       touchStartX.current = e.touches[0].clientX;
       touchStartY.current = e.touches[0].clientY;
       setIsSwiping(true);
+      
+      // Start long press timer (only for own messages)
+      if (isOwnMessage && onEdit) {
+        longPressTimer.current = setTimeout(() => {
+          if (onEdit) {
+            onEdit(msg);
+          }
+          longPressTimer.current = null;
+        }, LONG_PRESS_DURATION);
+      }
     };
 
     const handleTouchMove = (e) => {
@@ -60,6 +72,12 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
       
       const deltaX = e.touches[0].clientX - touchStartX.current;
       const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current);
+      
+      // Cancel long press if user moves too much
+      if (longPressTimer.current && (Math.abs(deltaX) > 10 || deltaY > 10)) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
       
       // Only allow horizontal swipe (not vertical scrolling)
       if (deltaY < 30) {
@@ -72,6 +90,12 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
     };
 
     const handleTouchEnd = () => {
+      // Cancel long press timer if still active
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+      
       // Swipe right (positive offset) to reply
       if (swipeOffset >= SWIPE_THRESHOLD && onReply) {
         onReply(msg);
@@ -80,12 +104,30 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
       setIsSwiping(false);
     };
 
+    const handleContextMenu = (e) => {
+      // Right click to edit (only for own messages on desktop)
+      if (isOwnMessage && onEdit) {
+        e.preventDefault();
+        onEdit(msg);
+      }
+    };
+
+    // Cleanup long press timer on unmount
+    useEffect(() => {
+      return () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+        }
+      };
+    }, []);
+
     return (
       <div
         className="message-bubble-wrapper"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onContextMenu={handleContextMenu}
         style={{
           transform: `translateX(${swipeOffset}px)`,
           transition: isSwiping ? 'none' : 'transform 0.3s ease-out'
