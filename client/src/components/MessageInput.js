@@ -99,8 +99,17 @@ const MessageInput = ({ onSendMessage, onTyping, replyTo, onCancelReply, editMes
 
   const handleSend = async (fileData = null) => {
     if (message.trim() || fileData) {
-      onSendMessage(message, fileData);
-      setMessage('');
+      if (editMessage) {
+        // Handle edit
+        onSendMessage(message, fileData, null, editMessage.id);
+        setMessage('');
+        if (onCancelEdit) onCancelEdit();
+      } else {
+        // Handle normal send or reply
+        onSendMessage(message, fileData, replyTo?.id || null);
+        setMessage('');
+        if (replyTo && onCancelReply) onCancelReply();
+      }
       setIsTyping(false);
       onTyping(false);
       if (typingTimeoutRef.current) {

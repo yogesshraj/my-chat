@@ -93,6 +93,7 @@ const Chat = ({ user, onLogout }) => {
           updated[index] = message;
           return updated;
         }
+        // If message not found, add it (shouldn't happen but handle gracefully)
         return prev;
       });
     });

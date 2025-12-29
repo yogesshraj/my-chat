@@ -555,6 +555,76 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle message edit
+  socket.on('editMessage', async (data) => {
+    try {
+      const fromUser = socket.username || 'unknown';
+      
+      // Verify the message belongs to the user
+      const existingMessage = await prisma.message.findUnique({
+        where: { id: data.messageId }
+      });
+
+      if (!existingMessage) {
+        socket.emit('error', { message: 'Message not found' });
+        return;
+      }
+
+      if (existingMessage.fromUser !== fromUser) {
+        socket.emit('error', { message: 'You can only edit your own messages' });
+        return;
+      }
+
+      // Update message
+      const updatedMessage = await prisma.message.update({
+        where: { id: data.messageId },
+        data: {
+          message: data.newMessage,
+          isEdited: true,
+          editedAt: new Date()
+        },
+        include: {
+          replyTo: {
+            select: {
+              id: true,
+              fromUser: true,
+              message: true,
+              fileType: true,
+              fileName: true
+            }
+          }
+        }
+      });
+
+      const message = {
+        id: updatedMessage.id,
+        from: updatedMessage.fromUser,
+        to: updatedMessage.toUser,
+        message: updatedMessage.message,
+        fileUrl: updatedMessage.fileUrl,
+        fileType: updatedMessage.fileType,
+        fileName: updatedMessage.fileName,
+        isEdited: updatedMessage.isEdited,
+        editedAt: updatedMessage.editedAt?.toISOString() || null,
+        replyToId: updatedMessage.replyToId,
+        replyTo: updatedMessage.replyTo ? {
+          id: updatedMessage.replyTo.id,
+          from: updatedMessage.replyTo.fromUser,
+          message: updatedMessage.replyTo.message,
+          fileType: updatedMessage.replyTo.fileType,
+          fileName: updatedMessage.replyTo.fileName
+        } : null,
+        timestamp: updatedMessage.createdAt.toISOString()
+      };
+
+      // Emit to both users
+      io.emit('messageEdited', message);
+    } catch (error) {
+      console.error('Error editing message:', error);
+      socket.emit('error', { message: 'Failed to edit message' });
+    }
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
     if (socket.username) {
