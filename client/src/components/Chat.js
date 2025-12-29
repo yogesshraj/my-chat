@@ -77,6 +77,11 @@ const Chat = ({ user, onLogout }) => {
         const existingIndex = prev.findIndex(m => m.id === message.id);
         if (existingIndex >= 0) {
           const updated = [...prev];
+          // Preserve isRead status if message already has it and new message doesn't
+          if (updated[existingIndex].isRead && !message.isRead) {
+            message.isRead = updated[existingIndex].isRead;
+            message.readAt = updated[existingIndex].readAt;
+          }
           updated[existingIndex] = message;
           return updated;
         }
@@ -100,14 +105,23 @@ const Chat = ({ user, onLogout }) => {
 
     // Listen for messages read updates
     newSocket.on('messagesRead', (data) => {
+      console.log('Messages read event received:', data);
+      if (!data.messageIds || data.messageIds.length === 0) {
+        console.log('No message IDs in read event');
+        return;
+      }
       setMessages(prev => {
-        return prev.map(msg => {
-          // Update read status for specific message IDs
-          if (data.messageIds && data.messageIds.includes(msg.id)) {
+        const updated = prev.map(msg => {
+          // Update read status for specific message IDs (only for own messages)
+          if (msg.from === user && data.messageIds && data.messageIds.includes(msg.id)) {
+            console.log('Updating message to read:', msg.id);
             return { ...msg, isRead: true, readAt: new Date().toISOString() };
           }
           return msg;
         });
+        const readMessages = updated.filter(m => m.isRead && m.from === user);
+        console.log(`Updated ${readMessages.length} messages to read status`);
+        return updated;
       });
     });
 
@@ -239,8 +253,10 @@ const Chat = ({ user, onLogout }) => {
 
   useEffect(() => {
     scrollToBottom();
-    
-    // Mark messages as read when user views them
+  }, [messages, typing]);
+
+  // Mark messages as read when user views them (separate effect to avoid infinite loops)
+  useEffect(() => {
     if (socket && otherUser && messages.length > 0) {
       const unreadMessages = messages.filter(
         msg => msg.from === otherUser && !msg.isRead
@@ -253,7 +269,7 @@ const Chat = ({ user, onLogout }) => {
         });
       }
     }
-  }, [messages, typing, socket, otherUser]);
+  }, [messages, socket, otherUser]);
 
   const scrollToBottom = () => {
     // Use setTimeout to ensure DOM has updated

@@ -384,6 +384,19 @@ io.on('connection', (socket) => {
           });
           
           if (unreadMessages.count > 0) {
+            // Get the message IDs that were marked as read
+            const readMessages = await prisma.message.findMany({
+              where: {
+                toUser: username,
+                fromUser: otherUser,
+                isRead: true,
+                readAt: { not: null }
+              },
+              select: { id: true },
+              orderBy: { readAt: 'desc' },
+              take: unreadMessages.count
+            });
+
             // Notify sender that messages were read
             const senderSocket = Array.from(activeUsers.entries())
               .find(([id, uname]) => uname === otherUser)?.[0];
@@ -391,7 +404,7 @@ io.on('connection', (socket) => {
             if (senderSocket) {
               io.to(senderSocket).emit('messagesRead', {
                 from: username,
-                count: unreadMessages.count
+                messageIds: readMessages.map(m => m.id)
               });
             }
           }
@@ -700,10 +713,13 @@ io.on('connection', (socket) => {
           .find(([id, username]) => username === data.fromUser)?.[0];
 
         if (senderSocket) {
+          console.log(`Notifying ${data.fromUser} that messages were read by ${currentUser}`);
           io.to(senderSocket).emit('messagesRead', {
             from: currentUser,
             messageIds: unreadMessages.map(m => m.id)
           });
+        } else {
+          console.log(`Sender ${data.fromUser} not found in active users`);
         }
       }
     } catch (error) {
