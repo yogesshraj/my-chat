@@ -116,6 +116,11 @@ app.get('/api/users/info', (req, res) => {
   res.json(userList);
 });
 
+// Get USER_1_NAME for client-side checks
+app.get('/api/user1-name', (req, res) => {
+  res.json({ user1Name: user1Name });
+});
+
 // File upload endpoint
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) {

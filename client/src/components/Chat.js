@@ -22,12 +22,20 @@ const Chat = ({ user, onLogout }) => {
   const [incomingCaller, setIncomingCaller] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user1Name, setUser1Name] = useState(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const pendingOfferRef = useRef(null);
 
   useEffect(() => {
+    // Get USER_1_NAME for notification checks
+    axios.get('https://myakka.qzz.io/api/user1-name')
+      .then(res => {
+        setUser1Name(res.data.user1Name);
+      })
+      .catch(err => console.error('Error fetching USER_1_NAME:', err));
+
     // Get the other user
     axios.get('/api/users')
       .then(res => {
@@ -66,9 +74,11 @@ const Chat = ({ user, onLogout }) => {
     });
 
     // Listen for notifications (only USER_1_NAME receives these)
-    // Server only sends this event to USER_1_NAME, so we can show it directly
     newSocket.on('new-message-notification', (data) => {
-      showNotification(data.from, data.message, data.fileType);
+      // Double check: only show if current user is USER_1_NAME
+      if (user === user1Name) {
+        showNotification(data.from, data.message, data.fileType);
+      }
     });
 
     // Listen for typing indicator
@@ -254,12 +264,10 @@ const Chat = ({ user, onLogout }) => {
 
   // Request notification permission on mount (only for USER_1_NAME)
   useEffect(() => {
-    // Check if current user is USER_1_NAME by comparing with otherUser
-    // If otherUser exists and we're not them, we're USER_1_NAME
-    if (otherUser && user !== otherUser && 'Notification' in window && Notification.permission === 'default') {
+    if (user === user1Name && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
-  }, [user, otherUser]);
+  }, [user, user1Name]);
 
   // WebRTC Call Functions
   const createPeerConnection = () => {
