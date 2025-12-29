@@ -63,13 +63,8 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
       
       // Only allow horizontal swipe (not vertical scrolling)
       if (deltaY < 30) {
-        // Swipe left to reply (for received messages)
-        if (!isOwnMessage && deltaX < 0) {
-          const offset = Math.max(-MAX_SWIPE, deltaX);
-          setSwipeOffset(offset);
-        }
-        // Swipe right to reply (for sent messages)
-        else if (isOwnMessage && deltaX > 0) {
+        // Swipe right to reply (for both received and sent messages)
+        if (deltaX > 0) {
           const offset = Math.min(MAX_SWIPE, deltaX);
           setSwipeOffset(offset);
         }
@@ -77,7 +72,8 @@ const MessageList = ({ messages, currentUser, typing, otherUser, messagesEndRef,
     };
 
     const handleTouchEnd = () => {
-      if (Math.abs(swipeOffset) >= SWIPE_THRESHOLD && onReply) {
+      // Swipe right (positive offset) to reply
+      if (swipeOffset >= SWIPE_THRESHOLD && onReply) {
         onReply(msg);
       }
       setSwipeOffset(0);
